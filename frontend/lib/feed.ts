@@ -44,9 +44,20 @@ export function parseFilters(search: Search): Filters {
   };
 }
 
-export function filtersToQuery(filters: Filters, citySlug: string) {
+export function filtersToQuery(
+  filters: Filters,
+  citySlug: string,
+  location?: { name: string; lat: number; lng: number; country?: string },
+) {
   const params = new URLSearchParams();
-  params.set("city", citySlug);
+  if (location) {
+    params.set("location", location.name);
+    params.set("lat", String(location.lat));
+    params.set("lng", String(location.lng));
+    if (location.country) params.set("country", location.country);
+  } else {
+    params.set("city", citySlug);
+  }
   const category = categoryToSlug(filters.category);
   if (category) params.set("cat", category);
   if (filters.when !== "any") params.set("when", filters.when);

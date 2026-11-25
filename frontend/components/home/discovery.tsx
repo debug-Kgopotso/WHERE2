@@ -87,7 +87,16 @@ export function Discovery({
     lastPushed.current = key;
     if (timer.current) window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
-      const qs = filtersToQuery(next, city.slug);
+      const location =
+        city.slug === "selected-location"
+          ? {
+              name: city.name,
+              lat: city.lat,
+              lng: city.lng,
+              country: city.country,
+            }
+          : undefined;
+      const qs = filtersToQuery(next, city.slug, location);
       if (qs === window.location.search.replace(/^\?/, "")) return;
       startTransition(() => {
         router.replace(`/?${qs}`, { scroll: false });
@@ -153,7 +162,12 @@ export function Discovery({
             </div>
             <CitySearch
               catalogue={catalogue}
-              citySlug={city.slug}
+              activeLocation={{
+                name: city.name,
+                lat: city.lat,
+                lng: city.lng,
+                country: city.country,
+              }}
               query={filters.q}
               onQuery={(q) => commit({ ...filters, q }, 220)}
             />
@@ -199,7 +213,17 @@ export function Discovery({
             <EmptyBoard searching={filters.q.length > 0} onClear={() => commit({ ...EMPTY_FILTERS })} />
           )
         ) : (
-          <FeedBoard items={feed} citySlug={city.slug} signature={filterKey(filters)} />
+          <FeedBoard
+            items={feed}
+            citySlug={city.slug}
+            signature={filterKey(filters)}
+            activeLocation={{
+              name: city.name,
+              lat: city.lat,
+              lng: city.lng,
+              country: city.country,
+            }}
+          />
         )}
       </Container>
     </div>
@@ -255,12 +279,12 @@ function SelectFilter<T extends string>({
 
 function CitySearch({
   catalogue,
-  citySlug,
+  activeLocation,
   query,
   onQuery,
 }: {
   catalogue: EventItem[];
-  citySlug: string;
+  activeLocation: { name: string; lat: number; lng: number; country?: string };
   query: string;
   onQuery: (value: string) => void;
 }) {
@@ -296,7 +320,7 @@ function CitySearch({
             hits.map((hit) => (
               <li key={hit.id} role="option" aria-selected="false">
                 <Link
-                  href={`/event/${hit.slug}?city=${citySlug}`}
+                  href={`/event/${hit.slug}?location=${encodeURIComponent(activeLocation.name)}&lat=${activeLocation.lat}&lng=${activeLocation.lng}${activeLocation.country ? `&country=${encodeURIComponent(activeLocation.country)}` : ""}`}
                   className="block px-4 py-3 hover:bg-bg"
                 >
                   <span className="block font-display text-lg font-bold leading-tight tracking-[-0.03em]">

@@ -11,6 +11,7 @@ import { isTonight } from "@/lib/feed";
 import { zoned } from "@/lib/format";
 import { distanceKm, formatKm } from "@/lib/geo";
 import type { City, EventItem } from "@/lib/types";
+import { optimizeEventImage } from "@/lib/image";
 
 export function TonightHero({ event, city }: { event: EventItem; city: City }) {
   const ref = useRef<HTMLElement>(null);
@@ -25,15 +26,20 @@ export function TonightHero({ event, city }: { event: EventItem; city: City }) {
   const until = zoned(event.endAt);
   const km = distanceKm(city, event);
   const kicker = isTonight(event.startAt) ? "Tonight" : when.weekday;
+  const eventHref = `/event/${event.slug}?location=${encodeURIComponent(city.name)}&lat=${city.lat}&lng=${city.lng}${city.country ? `&country=${encodeURIComponent(city.country)}` : ""}`;
 
   return (
-    <section ref={ref} className="relative min-h-[60vh] overflow-hidden bg-near-black">
-      <motion.div style={{ y: imageY }} className="absolute inset-x-0 -top-[8%] h-[116%]">
+    <section ref={ref} className="relative min-h-[420px] max-h-[560px] overflow-hidden bg-near-black">
+      <motion.div
+        style={{ y: imageY }}
+        className="absolute right-4 top-[calc(var(--header-h)+12px)] h-[160px] w-[220px] overflow-hidden rounded-card opacity-80 md:right-12 md:top-24 md:h-[220px] md:w-[300px]"
+      >
         <Image
           src={event.images[0]}
           alt=""
           fill
           priority
+          unoptimized={!optimizeEventImage(event.images[0])}
           sizes="100vw"
           className="object-cover"
         />
@@ -71,7 +77,7 @@ export function TonightHero({ event, city }: { event: EventItem; city: City }) {
               {event.venue}
             </MonoLabel>
             <div className="flex items-center gap-2">
-              <Button href={`/event/${event.slug}?city=${city.slug}`} size="lg">
+              <Button href={eventHref} size="lg">
                 Take me there
               </Button>
               <SaveButton id={event.id} />

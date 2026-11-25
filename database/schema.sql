@@ -24,6 +24,7 @@ create table if not exists public.hosts (
 create table if not exists public.events (
   id uuid primary key default gen_random_uuid(),
   host_id uuid references public.hosts (id) on delete set null,
+  user_id uuid references auth.users (id) on delete set null,
   slug text,
   title text not null,
   description text,
@@ -38,6 +39,7 @@ create table if not exists public.events (
   price_info text,
   age_restriction text,
   source text not null default 'host' check (source in ('host', 'scraper')),
+  source_name text,
   has_live_tickets boolean not null default false,
   external_ticket_url text,
   poster_url text,

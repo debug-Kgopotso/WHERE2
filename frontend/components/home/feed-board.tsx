@@ -16,10 +16,12 @@ export function FeedBoard({
   items,
   citySlug,
   signature,
+  activeLocation,
 }: {
   items: FeedItem[];
   citySlug: string;
   signature: string;
+  activeLocation?: { name: string; lat: number; lng: number; country?: string };
 }) {
   const reduce = useReducedMotion();
   const rows = chunkFeed(items);
@@ -36,14 +38,27 @@ export function FeedBoard({
         row.kind === "sponsor" ? (
           <SponsorBreak key={row.sponsor.id} row={row} />
         ) : (
-          <EventGrid key={row.items.map((item) => item.event.id).join("-")} row={row} citySlug={citySlug} />
+          <EventGrid
+            key={row.items.map((item) => item.event.id).join("-")}
+            row={row}
+            citySlug={citySlug}
+            activeLocation={activeLocation}
+          />
         ),
       )}
     </motion.div>
   );
 }
 
-function EventGrid({ row, citySlug }: { row: EventRow; citySlug: string }) {
+function EventGrid({
+  row,
+  citySlug,
+  activeLocation,
+}: {
+  row: EventRow;
+  citySlug: string;
+  activeLocation?: { name: string; lat: number; lng: number; country?: string };
+}) {
   const [lead, ...rest] = row.items;
 
   if (!lead) return null;
@@ -51,7 +66,7 @@ function EventGrid({ row, citySlug }: { row: EventRow; citySlug: string }) {
   if (!rest.length) {
     return (
       <motion.div variants={fadeUp}>
-        <EventCard event={lead.event} distanceKm={lead.distanceKm} citySlug={citySlug} size="lead" />
+        <EventCard event={lead.event} distanceKm={lead.distanceKm} citySlug={citySlug} size="lead" activeLocation={activeLocation} />
       </motion.div>
     );
   }
@@ -62,7 +77,7 @@ function EventGrid({ row, citySlug }: { row: EventRow; citySlug: string }) {
       className={cn("flex flex-col gap-3 md:flex-row md:items-start md:gap-5", row.flip && "md:flex-row-reverse")}
     >
       <motion.div variants={fadeUp} className="md:w-[58%]">
-        <EventCard event={lead.event} distanceKm={lead.distanceKm} citySlug={citySlug} size="lead" />
+        <EventCard event={lead.event} distanceKm={lead.distanceKm} citySlug={citySlug} size="lead" activeLocation={activeLocation} />
       </motion.div>
       <motion.div
         variants={stagger}
@@ -70,7 +85,7 @@ function EventGrid({ row, citySlug }: { row: EventRow; citySlug: string }) {
       >
         {rest.map((item) => (
           <motion.div key={item.event.id} variants={fadeUp}>
-            <EventCard event={item.event} distanceKm={item.distanceKm} citySlug={citySlug} size="compact" />
+            <EventCard event={item.event} distanceKm={item.distanceKm} citySlug={citySlug} size="compact" activeLocation={activeLocation} />
           </motion.div>
         ))}
       </motion.div>

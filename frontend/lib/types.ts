@@ -16,6 +16,7 @@ export type City = {
   region: string;
   lat: number;
   lng: number;
+  country?: string;
 };
 
 export type Host = {
@@ -36,6 +37,8 @@ export type EventItem = {
   venue: string;
   address: string;
   citySlug: string;
+  locationName?: string;
+  sourceName?: string;
   lat: number;
   lng: number;
   startAt: string;

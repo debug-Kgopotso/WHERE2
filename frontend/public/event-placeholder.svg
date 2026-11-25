@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <rect width="800" height="600" fill="#171711"/>
+  <circle cx="640" cy="135" r="220" fill="#f15a00" opacity=".82"/>
+  <path d="M0 470 245 250l180 150 138-120 237 225v95H0z" fill="#4a5d4e"/>
+  <path d="M0 520 230 360l190 125 145-105 235 151v69H0z" fill="#0e0e0c" opacity=".75"/>
+  <text x="54" y="94" fill="#f4f1ea" font-family="Arial,sans-serif" font-size="38" font-weight="700">WHERE2</text>
+</svg>

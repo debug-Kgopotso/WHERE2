@@ -10,6 +10,7 @@ import { zoned } from "@/lib/format";
 import { formatKm } from "@/lib/geo";
 import { springLift } from "@/lib/motion";
 import { cn } from "@/lib/cn";
+import { optimizeEventImage } from "@/lib/image";
 import type { EventItem } from "@/lib/types";
 
 export function EventCard({
@@ -17,15 +18,25 @@ export function EventCard({
   distanceKm,
   citySlug,
   size,
+  activeLocation,
 }: {
   event: EventItem;
   distanceKm: number;
   citySlug: string;
   size: "lead" | "compact";
+  activeLocation?: { name: string; lat: number; lng: number; country?: string };
 }) {
   const when = zoned(event.startAt);
   const poster = { viewTransitionName: `poster-${event.id}` } as CSSProperties;
-  const href = `/event/${event.slug}?city=${citySlug}`;
+  const location: { name: string; lat: number; lng: number; country?: string } | null = activeLocation ?? (
+    event.locationName
+      ? { name: event.locationName, lat: event.lat, lng: event.lng }
+      : null
+  );
+  const locationQuery = location
+    ? `location=${encodeURIComponent(location.name)}&lat=${location.lat}&lng=${location.lng}${location.country ? `&country=${encodeURIComponent(location.country)}` : ""}`
+    : `city=${encodeURIComponent(citySlug)}`;
+  const href = `/event/${event.slug}?${locationQuery}`;
 
   return (
     <TransitionLink href={href} className="group block h-full">
@@ -35,11 +46,12 @@ export function EventCard({
         className="relative flex h-full flex-col overflow-hidden rounded-card border border-line bg-surface shadow-card"
       >
         {size === "lead" ? (
-          <div className="relative h-[520px] md:h-[580px]" style={poster}>
+          <div className="relative h-[260px] md:h-[300px]" style={poster}>
             <Image
               src={event.images[0]}
               alt={event.title}
               fill
+              unoptimized={!optimizeEventImage(event.images[0])}
               sizes="(min-width: 768px) 58vw, 100vw"
               className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
             />
@@ -95,6 +107,7 @@ export function EventCard({
                 src={event.images[0]}
                 alt={event.title}
                 fill
+                unoptimized={!optimizeEventImage(event.images[0])}
                 sizes="(min-width: 768px) 34vw, 50vw"
                 className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
               />

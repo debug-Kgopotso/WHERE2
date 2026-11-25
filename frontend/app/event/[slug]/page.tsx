@@ -10,18 +10,48 @@ import { Container } from "@/components/ui/container";
 import { MonoLabel } from "@/components/ui/mono-label";
 import { SaveButton } from "@/components/ui/save-button";
 import { getCity } from "@/lib/cities";
-import { siteUrl } from "@/lib/cn";
+import { firstParam, siteUrl } from "@/lib/cn";
 import { EVENTS, getEventBySlug } from "@/lib/events";
 import { relatedEvents } from "@/lib/feed";
 import { zoned } from "@/lib/format";
 import { distanceKm, formatKm, travelEstimate } from "@/lib/geo";
+import { eventFromDatabaseRow } from "@/lib/event-record";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+
+type Search = Record<string, string | string[] | undefined>;
+
+export const dynamic = "force-dynamic";
+export const dynamicParams = true;
 
 export function generateStaticParams() {
   return EVENTS.map((event) => ({ slug: event.slug }));
 }
 
-export function generateMetadata({ params }: { params: { slug: string } }): Metadata {
-  const event = getEventBySlug(params.slug);
+async function findEvent(slug: string) {
+  const supabase = createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("events")
+    .select("*")
+    .eq("slug", slug)
+    .eq("status", "approved")
+    .maybeSingle();
+  if (error) throw new Error(`Could not load event: ${error.message}`);
+  if (data) return eventFromDatabaseRow(data);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug)) {
+    return getEventBySlug(slug);
+  }
+  const byId = await supabase
+    .from("events")
+    .select("*")
+    .eq("id", slug)
+    .eq("status", "approved")
+    .maybeSingle();
+  if (byId.error) throw new Error(`Could not load event: ${byId.error.message}`);
+  return eventFromDatabaseRow(byId.data) ?? getEventBySlug(slug);
+}
+
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const event = await findEvent(params.slug);
   if (!event) return { title: "This one left early" };
   return {
     title: event.title,
@@ -34,15 +64,46 @@ export function generateMetadata({ params }: { params: { slug: string } }): Meta
   };
 }
 
-export default function EventPage({ params }: { params: { slug: string } }) {
-  const event = getEventBySlug(params.slug);
+export default async function EventPage({
+  params,
+  searchParams,
+}: {
+  params: { slug: string };
+  searchParams: Search;
+}) {
+  const event = await findEvent(params.slug);
   if (!event) notFound();
 
-  const city = getCity(event.citySlug);
+  const defaultCity = getCity(event.citySlug);
+  const placeName = firstParam(searchParams.location);
+  const latValue = firstParam(searchParams.lat);
+  const lngValue = firstParam(searchParams.lng);
+  const selectedLat = Number(latValue);
+  const selectedLng = Number(lngValue);
+  const selectedLocation =
+    placeName &&
+    latValue &&
+    lngValue &&
+    Number.isFinite(selectedLat) &&
+    Number.isFinite(selectedLng) &&
+    Math.abs(selectedLat) <= 90 &&
+    Math.abs(selectedLng) <= 180
+      ? { name: placeName, lat: selectedLat, lng: selectedLng }
+      : null;
+  const city = {
+    ...defaultCity,
+    name: selectedLocation?.name ?? event.locationName ?? defaultCity.name,
+    lat: selectedLocation
+      ? selectedLocation.lat
+      : defaultCity.slug === event.citySlug ? defaultCity.lat : event.lat,
+    lng: selectedLocation
+      ? selectedLocation.lng
+      : defaultCity.slug === event.citySlug ? defaultCity.lng : event.lng,
+  };
   const km = distanceKm(city, event);
   const start = zoned(event.startAt);
   const end = zoned(event.endAt);
-  const related = relatedEvents(event);
+  const related = event.locationName ? [] : relatedEvents(event);
   const paragraphs = event.description.split(/\n\n+/);
   const maps = `https://www.google.com/maps/search/?api=1&query=${event.lat},${event.lng}`;
   const jsonLd = {
@@ -60,13 +121,13 @@ export default function EventPage({ params }: { params: { slug: string } }) {
       name: event.venue,
       address: event.address,
     },
-    offers: {
+    offers: event.externalLink ? {
       "@type": "Offer",
       price: event.priceValue,
       priceCurrency: "ZAR",
       url: event.externalLink,
       availability: "https://schema.org/InStock",
-    },
+    } : undefined,
     organizer: {
       "@type": "Organization",
       name: event.host.name,
@@ -79,7 +140,11 @@ export default function EventPage({ params }: { params: { slug: string } }) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <Container>
         <Link
-          href={`/?city=${city.slug}`}
+          href={selectedLocation
+            ? `/?location=${encodeURIComponent(selectedLocation.name)}&lat=${selectedLocation.lat}&lng=${selectedLocation.lng}${firstParam(searchParams.country) ? `&country=${encodeURIComponent(firstParam(searchParams.country) ?? "")}` : ""}`
+            : event.locationName
+            ? `/?location=${encodeURIComponent(event.locationName)}&lat=${event.lat}&lng=${event.lng}`
+            : `/?city=${city.slug}`}
           className="font-mono text-[11px] uppercase tracking-[0.08em] text-ink-muted hover:text-ember"
         >
           The board · {city.name}
@@ -132,15 +197,23 @@ export default function EventPage({ params }: { params: { slug: string } }) {
           </div>
           <div className="mt-10 border-t border-line pt-6">
             <MonoLabel>Host</MonoLabel>
-            <Link href={`/host/${event.host.slug}`} className="mt-3 block group">
-              <span className="font-display text-3xl font-bold tracking-[-0.03em] group-hover:text-ember">
-                {event.host.name}
-              </span>
-              <span className="mt-2 block max-w-md text-[15px] leading-relaxed text-ink-muted">
-                {event.host.bio}
-              </span>
-              <MonoLabel className="mt-3">{event.host.neighborhood}</MonoLabel>
-            </Link>
+            {event.locationName ? (
+              <div className="mt-3">
+                <span className="font-display text-3xl font-bold tracking-[-0.03em]">{event.host.name}</span>
+                <span className="mt-2 block max-w-md text-[15px] leading-relaxed text-ink-muted">{event.host.bio}</span>
+                <MonoLabel className="mt-3">{event.host.neighborhood}</MonoLabel>
+              </div>
+            ) : (
+              <Link href={`/host/${event.host.slug}`} className="mt-3 block group">
+                <span className="font-display text-3xl font-bold tracking-[-0.03em] group-hover:text-ember">
+                  {event.host.name}
+                </span>
+                <span className="mt-2 block max-w-md text-[15px] leading-relaxed text-ink-muted">
+                  {event.host.bio}
+                </span>
+                <MonoLabel className="mt-3">{event.host.neighborhood}</MonoLabel>
+              </Link>
+            )}
           </div>
         </div>
         <aside className="lg:col-span-5 lg:self-start">
@@ -169,12 +242,17 @@ export default function EventPage({ params }: { params: { slug: string } }) {
               </div>
             </div>
             <div className="mt-6 flex flex-col gap-2">
-              <Button href={`/go/${event.id}`} newTab size="lg" className="w-full">
-                Get tickets
-              </Button>
-              <p className="text-center text-[13px] leading-relaxed text-ink-muted">
-                Opens the host’s page. WHERE2 doesn’t take payment.
-              </p>
+              {event.externalLink && (
+                <>
+                  <Button href={`/go/${event.id}`} newTab size="lg" className="w-full">
+                    View event information
+                  </Button>
+                  <p className="text-center text-[13px] leading-relaxed text-ink-muted">
+                    {event.sourceName ? `Opens ${event.sourceName}. ` : "Opens the event host’s website. "}
+                    WHERE2 does not sell tickets or take payment.
+                  </p>
+                </>
+              )}
               <GoingToggle id={event.id} />
               <ShareButton title={event.title} text={event.dek} />
               <a
