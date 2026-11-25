@@ -7,6 +7,7 @@ import { PinMark, Wordmark } from "@/components/brand/wordmark";
 import { LocationFallback, LocationSwitcher } from "@/components/layout/location-switcher";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Container } from "@/components/ui/container";
+import { AuthStatus } from "@/components/auth/auth-status";
 import { cn } from "@/lib/cn";
 import { useSaves } from "@/lib/saves";
 
@@ -16,6 +17,7 @@ export function SiteHeader() {
   const [ready, setReady] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const overlay = pathname === "/";
+  const authScreen = pathname === "/login" || pathname === "/signup";
 
   useEffect(() => setReady(true), []);
   useEffect(() => {
@@ -49,9 +51,11 @@ export function SiteHeader() {
         >
           <BrandLockup bone={!solid} />
         </Suspense>
-        <Suspense fallback={<LocationFallback />}>
-          <LocationSwitcher />
-        </Suspense>
+        {!authScreen && (
+          <Suspense fallback={<LocationFallback />}>
+            <LocationSwitcher />
+          </Suspense>
+        )}
         <nav className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
           <Suspense
             fallback={
@@ -82,6 +86,16 @@ export function SiteHeader() {
           >
             Saved{ready && savedIds.length > 0 ? ` ${savedIds.length}` : ""}
           </Link>
+          <Link
+            href="/host/new"
+            className={cn(
+              "rounded-full px-2 py-2 font-mono text-[10px] uppercase tracking-[0.06em] sm:px-3 sm:text-[11px] sm:tracking-[0.08em]",
+              pathname === "/host/new" ? "text-ember" : navIdle,
+            )}
+          >
+            Post event
+          </Link>
+          <AuthStatus />
           <ThemeToggle />
         </nav>
       </Container>
@@ -89,14 +103,24 @@ export function SiteHeader() {
   );
 }
 
-function cityHome(city: string | null) {
-  return city ? `/?city=${city}` : "/";
+function cityHome(params: URLSearchParams) {
+  const location = params.get("location");
+  const lat = params.get("lat");
+  const lng = params.get("lng");
+  if (location && lat && lng) {
+    const query = new URLSearchParams({ location, lat, lng });
+    const country = params.get("country");
+    if (country) query.set("country", country);
+    return `/?${query.toString()}`;
+  }
+  const city = params.get("city");
+  return city ? `/?city=${encodeURIComponent(city)}` : "/";
 }
 
 function BrandLockup({ bone }: { bone: boolean }) {
-  const city = useSearchParams().get("city");
+  const params = useSearchParams();
   return (
-    <Link href={cityHome(city)} className="flex shrink-0 items-center gap-2" aria-label="WHERE2 home">
+    <Link href={cityHome(new URLSearchParams(params.toString()))} className="flex shrink-0 items-center gap-2" aria-label="WHERE2 home">
       <PinMark />
       <Wordmark className={cn("cover-wordmark hidden sm:inline", bone && "text-bone")} />
     </Link>
@@ -104,9 +128,9 @@ function BrandLockup({ bone }: { bone: boolean }) {
 }
 
 function BoardLink({ className }: { className: string }) {
-  const city = useSearchParams().get("city");
+  const params = useSearchParams();
   return (
-    <Link href={cityHome(city)} className={className}>
+    <Link href={cityHome(new URLSearchParams(params.toString()))} className={className}>
       Board
     </Link>
   );
